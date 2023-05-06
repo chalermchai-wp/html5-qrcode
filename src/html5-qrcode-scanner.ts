@@ -142,6 +142,8 @@ export interface Html5QrcodeScannerConfig
      * TODO(minhazav): Document this API, currently hidden.
      */
     defaultZoomValueIfSupported?: number | undefined;
+
+    autoRequestPermission?: boolean | undefined;
 }
 
 function toHtml5QrcodeCameraScanConfig(config: Html5QrcodeScannerConfig)
@@ -667,8 +669,12 @@ export class Html5QrcodeScanner {
         // camera based scan. @priority: high.
 
         if (this.scanTypeSelector.isCameraScanRequired()) {
-            this.createPermissionsUi(
-                scpCameraScanRegion, requestPermissionContainer);
+            if(this.config.autoRequestPermission){
+                this.createCamara();
+            }else{
+                this.createPermissionsUi(
+                    scpCameraScanRegion, requestPermissionContainer);
+            }
         }
 
         this.renderFileScanUi(sectionControlPanel);
@@ -705,6 +711,45 @@ export class Html5QrcodeScanner {
 
         this.fileSelectionUi = FileSelectionUi.create(
             parent, showOnRender, onFileSelected);
+    }
+
+    private createCamara() {
+        const $this = this;
+
+        Html5Qrcode.getCameras().then((cameras) => {
+            // By this point the user has granted camera permissions.
+            $this.persistedDataManager.setHasPermission(
+                /* hasPermission */ true);
+            $this.showHideScanTypeSwapLink(true);
+            $this.resetHeaderMessage();
+            if (cameras && cameras.length > 0) {
+                // scpCameraScanRegion.removeChild(requestPermissionContainer);
+                $this.renderCameraSelection(cameras);
+            } else {
+                $this.setHeaderMessage(
+                    Html5QrcodeScannerStrings.noCameraFound(),
+                    Html5QrcodeScannerStatus.STATUS_WARNING);
+                // createPermissionButtonIfNotExists();
+            }
+        }).catch((error) => {
+            $this.persistedDataManager.setHasPermission(
+                /* hasPermission */ false);
+            
+            // if (requestPermissionButton) {
+            //     requestPermissionButton.disabled = false;
+            // } else {
+                // Case when the permission button generation was skipped
+                // likely due to persistedDataManager indicated permissions
+                // exists.
+                // This should ideally never happen, but if it so happened that
+                // the camera retrieval failed, we want to create button this
+                // time.
+                // createPermissionButtonIfNotExists();
+            // }
+            $this.setHeaderMessage(
+                error, Html5QrcodeScannerStatus.STATUS_WARNING);
+            $this.showHideScanTypeSwapLink(true);
+        });
     }
 
     private renderCameraSelection(cameras: Array<CameraDevice>) {
